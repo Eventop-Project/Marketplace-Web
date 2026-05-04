@@ -13,26 +13,25 @@ jobs:
     steps:
       - uses: actions/github-script@v7
         with:
-          # Asegurate de que el secret ORG_TOKEN esté creado en el repo real
           github-token: ${{ secrets.ORG_TOKEN }}
           script: |
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
+            const org = context.repo.owner;
+            const teamSlug = 'team'; // IMPORTANTE: Cambiá 'team' si le pusieron otro nombre al equipo
             const prAuthor = context.payload.pull_request.user.login;
 
-            // En un repo personal, buscamos colaboradores directamente
-            const { data: collaborators } = await github.rest.repos.listCollaborators({
-              owner,
-              repo,
+            // Obtener miembros del equipo
+            const { data: members } = await github.rest.teams.listMembersInOrg({
+              org,
+              team_slug: teamSlug,
             });
 
-            // Mapeamos los usuarios y EXCLUIMOS al autor del PR
-            const candidates = collaborators
+            // Excluir al autor del PR
+            const candidates = members
               .map(m => m.login)
               .filter(login => login !== prAuthor);
 
             if (candidates.length === 0) {
-              console.log('No hay revisores disponibles (solo está el autor o no hay colaboradores aceptados).');
+              console.log('No hay revisores disponibles (todos son el autor).');
               return;
             }
 
@@ -41,8 +40,8 @@ jobs:
             console.log(`Asignando revisor: ${reviewer}`);
 
             await github.rest.pulls.requestReviewers({
-              owner: owner,
-              repo: repo,
+              owner: org,
+              repo: context.repo.repo,
               pull_number: context.payload.pull_request.number,
               reviewers: [reviewer],
             });
